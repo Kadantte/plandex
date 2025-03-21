@@ -1,3 +1,14 @@
+## Server Version 2.0.2
+Server-side fix for context auto-load hanging when there's no valid context to load (for example, if they're all directories, which is only discovered client-side, and which can't be auto-loaded)
+
+## Server Version 2.0.0+2
+- Version tag sanitation fix for GitHub Action to build and push server image to DockerHub
+
+## Server Version 2.0.0+1
+- Fix for custom model creation (https://github.com/plandex-ai/plandex/issues/214)
+- Fix for version check on self-hosted (https://github.com/plandex-ai/plandex/issues/213)
+- Fix for GitHub Action to build and push server image to DockerHub
+
 ## Server Version 2.0.0
 See CLI 2.0.0 release notes.
 
