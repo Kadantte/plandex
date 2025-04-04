@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"plandex-server/db"
+	"plandex-server/notify"
 	"plandex-server/shutdown"
 	"strconv"
 	"time"
@@ -52,6 +53,7 @@ func (state *activeTellStreamState) onError(params onErrorParams) onErrorResult 
 	canRetry := params.canRetry
 
 	if canRetry {
+		log.Println("tellStream onError - canRetry", canRetry)
 		if numRetries >= NumTellStreamRetries {
 			log.Printf("tellStream onError - Max retries reached for plan ID %s on branch %s\n", planId, branch)
 
@@ -60,6 +62,7 @@ func (state *activeTellStreamState) onError(params onErrorParams) onErrorResult 
 	}
 
 	if canRetry {
+		log.Println("tellStream onError - retrying stream")
 		// stop stream via context (ensures we stop child streams too)
 		active.CancelModelStreamFn()
 
@@ -80,6 +83,7 @@ func (state *activeTellStreamState) onError(params onErrorParams) onErrorResult 
 	}
 
 	storeDescAndReply := func() error {
+		log.Println("tellStream onError - storing desc and reply")
 		ctx, cancelFn := context.WithTimeout(shutdown.ShutdownCtx, 5*time.Second)
 
 		err := db.ExecRepoOperation(db.ExecRepoOperationParams{
@@ -160,7 +164,9 @@ func (state *activeTellStreamState) onError(params onErrorParams) onErrorResult 
 		return nil
 	}
 
-	storeDescAndReply() // best effort to store description and reply, ignore errors
+	if active.CurrentReplyContent != "" {
+		storeDescAndReply() // best effort to store description and reply, ignore errors
+	}
 
 	if params.streamApiErr != nil {
 		active.StreamDoneCh <- params.streamApiErr
@@ -169,6 +175,8 @@ func (state *activeTellStreamState) onError(params onErrorParams) onErrorResult 
 		if params.canRetry && numRetries >= NumTellStreamRetries {
 			msg += " | Failed after " + strconv.Itoa(numRetries) + " retries."
 		}
+
+		go notify.NotifyErr(notify.SeverityInfo, fmt.Sprintf("tellStream stream error after %d retries: %v", numRetries, streamErr))
 
 		active.StreamDoneCh <- &shared.ApiError{
 			Type:   shared.ApiErrorTypeOther,

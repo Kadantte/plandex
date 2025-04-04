@@ -1,3 +1,51 @@
+## CLI Version 2.0.6
+- Timeout for 'plandex browser' log capture command
+- Better failure handling for 'plandex browser' command
+
+## CLI Version 2.0.5
+- Consolidated to a single model pack for Gemini 2.5 Pro Experimental: 'gemini-exp'. Use it with 'plandex --gemini-exp' or '\set-model gemini-exp' in the REPL.
+- Prevent the '\send' command from being included in the prompt when using multi-line mode in the REPL.
+
+## CLI Version 2.0.4
+- **Models**
+  - Claude Sonnet 3.7 thinking is now available as a built-in model. Try the `reasoning` model pack for more challenging tasks.
+  - Gemini 2.5 pro (free/experimental version) is now available. Try the 'gemini-planner' or 'gemini-experimental' model packs to use it.
+  - DeepSeek V3 03-24 version is available as a built-in model and is now used in the `oss` pack in the in the the `coder` role. 
+  - OpenAI GPT 4.5 is available as a built-in model. It's not in any model packs so far due to rate limits and high cost, but is available to use via `set-model`
+  
+- **Debugging**
+  - Plandex can now directly debug browser applications by catching errors and reading the console logs (requires Chrome).
+  - Enhanced signal handling and subprocess termination robustness for execution control.
+
+- **Model Packs**
+  - Added commands:
+    - `model-packs update`
+    - `model-packs show`
+
+- **Reliability**
+  - Implemented HTTP retry logic with exponential backoff for transient errors.    
+
+- **REPL**
+  - Fixed whitespace handling issues.
+  - Improved command execution flow.
+
+- **Installation**
+  - Clarified support for WSL-only environments.
+  - Better handling of sudo and alias creation on Linux.
+
+## CLI Version 2.0.3
+- Fix potential race condition/goroutine explosion/crash in context update.
+- Prevent crash with negative viewport height in stream tui.
+
+## CLI Version 2.0.2
+- Fixed bug where context auto-load would hang if there was no valid context to load (for example, if they're all directories, which is only discovered client-side, and which can't be auto-loaded)
+- Fixed bug where the build output would sometimes wrap incorrectly, causing the Plan Stream TUI to get out of sync with the build output.
+- Fixed bug where build output would jump between collapsed and expanded states during a stream, after the user manually expanded.
+
+## CLI Version 2.0.1
+- Fix for REPL startup failing when self-hosting or using BYOK cloud mode (https://github.com/plandex-ai/plandex/issues/216)
+- Fix for potential crash with custom model pack (https://github.com/plandex-ai/plandex/issues/217)
+
 ## CLI Version 2.0.0
 👋 Hi, Dane here. I'm the creator and lead developer of Plandex.
 

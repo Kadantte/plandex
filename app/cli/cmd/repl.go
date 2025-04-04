@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"plandex-cli/api"
@@ -70,15 +69,11 @@ func setReplConfig() {
 
 func runRepl(cmd *cobra.Command, args []string) {
 	sessionId = uuid.New().String()
-	log.Println("sessionId", sessionId)
 
 	term.SetIsRepl(true)
+
 	auth.MustResolveAuthWithOrg()
 	lib.MustResolveOrCreateProject()
-
-	if !auth.Current.IntegratedModelsMode {
-		lib.MustVerifyApiKeys()
-	}
 
 	term.StartSpinner("")
 	lib.LoadState()
@@ -106,6 +101,7 @@ func runRepl(cmd *cobra.Command, args []string) {
 	}
 
 	afterNew := false
+
 	if lib.CurrentPlanId == "" {
 		os.Setenv("PLANDEX_DISABLE_SUGGESTIONS", "1")
 		args := []string{}
@@ -130,11 +126,19 @@ func runRepl(cmd *cobra.Command, args []string) {
 			args = append(args, "--cheap")
 		} else if dailyModels {
 			args = append(args, "--daily")
+		} else if reasoningModels {
+			args = append(args, "--reasoning")
+		} else if geminiExpModels {
+			args = append(args, "--gemini-exp")
 		}
 
 		newCmd.Run(newCmd, args)
 		os.Setenv("PLANDEX_DISABLE_SUGGESTIONS", "")
 		afterNew = true
+	}
+
+	if !auth.Current.IntegratedModelsMode {
+		lib.MustVerifyApiKeys()
 	}
 
 	projectPaths, err = fs.GetProjectPaths(fs.Cwd)
@@ -308,12 +312,12 @@ func executor(in string, p *prompt.Prompt) {
 	lastLine := lines[len(lines)-1]
 	lastLine = strings.TrimSpace(lastLine)
 
-	input := strings.TrimSpace(in)
-	if input == "" {
+	trimmedInput := strings.TrimSpace(in)
+	if trimmedInput == "" {
 		return
 	}
 	// condense whitespace
-	input = strings.Join(strings.Fields(input), " ")
+	condensedInput := strings.Join(strings.Fields(trimmedInput), " ")
 
 	// Handle plandex/pdx command prefix
 	if strings.HasPrefix(lastLine, "plandex ") || strings.HasPrefix(lastLine, "pdx ") {
@@ -429,10 +433,15 @@ func executor(in string, p *prompt.Prompt) {
 			return
 
 		case cmd == "send" || cmd == lib.ReplCmdAliases["send"]:
-			split := strings.Split(input, "\\s")
-			input = strings.TrimSpace(split[0])
-			input = strings.TrimSpace(input)
-			if input == "" {
+			condensedSplit := strings.Split(condensedInput, "\\s")
+			condensedInput = strings.TrimSpace(condensedSplit[0])
+			condensedInput = strings.TrimSpace(condensedInput)
+
+			trimmedSplit := strings.Split(trimmedInput, "\\s")
+			trimmedInput = strings.TrimSpace(trimmedSplit[0])
+			trimmedInput = strings.TrimSpace(trimmedInput)
+
+			if condensedInput == "" {
 				fmt.Println()
 				fmt.Println("🤷‍♂️ No prompt to send")
 				fmt.Println()
@@ -532,7 +541,7 @@ func executor(in string, p *prompt.Prompt) {
 	// Handle non-command input based on mode
 	if lib.CurrentReplState.Mode == lib.ReplModeTell {
 		fmt.Println()
-		args := []string{"tell", input}
+		args := []string{"tell", trimmedInput}
 		var err error
 		_, err = lib.ExecPlandexCommandWithParams(args, lib.ExecPlandexCommandParams{
 			SessionId: sessionId,
@@ -542,7 +551,7 @@ func executor(in string, p *prompt.Prompt) {
 		}
 	} else if lib.CurrentReplState.Mode == lib.ReplModeChat {
 		fmt.Println()
-		args := []string{"chat", input}
+		args := []string{"chat", trimmedInput}
 		output, err := lib.ExecPlandexCommandWithParams(args, lib.ExecPlandexCommandParams{
 			SessionId: sessionId,
 		})
