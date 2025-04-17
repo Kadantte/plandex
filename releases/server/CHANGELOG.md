@@ -1,3 +1,48 @@
+## Server Version 2.0.6
+- Improvements to process management and cleanup for command execution
+- Remove extraneous model request logging
+
+## Server Version 2.0.5
+- Fix for a bug that was causing occasional model errors. Model calls should be much more reliable now.
+- Better error handling and error messages for model errors (rate limits or other errors).
+- No error retries for rate limit errors.
+- Fixed bug that caused retries to add the prompt to the conversation multiple times.
+- Error responses with no output no longer create a log entry.
+
+## Server Version 2.0.4
+- **Stability**
+  - Enhanced database locking mechanisms.
+  - Improved error notifications.
+
+- **API Enhancements**
+  - Added endpoints for managing custom models and updating model packs.
+
+- **Execution**
+  - Increased robustness in plan execution and subprocess lifecycle management.
+
+- **Observability**
+  - Real-time internal notifications for critical errors implemented.
+
+- **Consistency**
+  - Improved token management.
+  - Enhanced summarization accuracy.
+
+## Server Version 2.0.3
+- Fix for potential crash during chat/tell operation.
+- Panic handling to prevent crashes in general.
+- Fix for local queue handling bug during builds that could cause queue to get stuck and cause subsequent operations to hang.
+
+## Server Version 2.0.2
+Server-side fix for context auto-load hanging when there's no valid context to load (for example, if they're all directories, which is only discovered client-side, and which can't be auto-loaded)
+
+## Server Version 2.0.0+2
+- Version tag sanitation fix for GitHub Action to build and push server image to DockerHub
+
+## Server Version 2.0.0+1
+- Fix for custom model creation (https://github.com/plandex-ai/plandex/issues/214)
+- Fix for version check on self-hosted (https://github.com/plandex-ai/plandex/issues/213)
+- Fix for GitHub Action to build and push server image to DockerHub
+
 ## Server Version 2.0.0
 See CLI 2.0.0 release notes.
 

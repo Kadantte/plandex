@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"plandex-cli/api"
@@ -70,15 +69,11 @@ func setReplConfig() {
 
 func runRepl(cmd *cobra.Command, args []string) {
 	sessionId = uuid.New().String()
-	log.Println("sessionId", sessionId)
 
 	term.SetIsRepl(true)
+
 	auth.MustResolveAuthWithOrg()
 	lib.MustResolveOrCreateProject()
-
-	if !auth.Current.IntegratedModelsMode {
-		lib.MustVerifyApiKeys()
-	}
 
 	term.StartSpinner("")
 	lib.LoadState()
@@ -106,6 +101,7 @@ func runRepl(cmd *cobra.Command, args []string) {
 	}
 
 	afterNew := false
+
 	if lib.CurrentPlanId == "" {
 		os.Setenv("PLANDEX_DISABLE_SUGGESTIONS", "1")
 		args := []string{}
@@ -130,11 +126,19 @@ func runRepl(cmd *cobra.Command, args []string) {
 			args = append(args, "--cheap")
 		} else if dailyModels {
 			args = append(args, "--daily")
+		} else if reasoningModels {
+			args = append(args, "--reasoning")
+		} else if geminiExpModels {
+			args = append(args, "--gemini-exp")
 		}
 
 		newCmd.Run(newCmd, args)
 		os.Setenv("PLANDEX_DISABLE_SUGGESTIONS", "")
 		afterNew = true
+	}
+
+	if !auth.Current.IntegratedModelsMode {
+		lib.MustVerifyApiKeys()
 	}
 
 	projectPaths, err = fs.GetProjectPaths(fs.Cwd)
@@ -308,12 +312,12 @@ func executor(in string, p *prompt.Prompt) {
 	lastLine := lines[len(lines)-1]
 	lastLine = strings.TrimSpace(lastLine)
 
-	input := strings.TrimSpace(in)
-	if input == "" {
+	trimmedInput := strings.TrimSpace(in)
+	if trimmedInput == "" {
 		return
 	}
 	// condense whitespace
-	input = strings.Join(strings.Fields(input), " ")
+	condensedInput := strings.Join(strings.Fields(trimmedInput), " ")
 
 	// Handle plandex/pdx command prefix
 	if strings.HasPrefix(lastLine, "plandex ") || strings.HasPrefix(lastLine, "pdx ") {
@@ -397,13 +401,25 @@ func executor(in string, p *prompt.Prompt) {
 		cmd := parts[0]
 		args := parts[1:]
 
+		var substringNEQMatches []string
+		for replCmd := range lib.ReplCmdAliases {
+			if strings.HasPrefix(replCmd, cmd) && replCmd != cmd {
+				substringNEQMatches = append(substringNEQMatches, replCmd)
+			}
+		}
+		for _, config := range term.CliCommands {
+			if strings.HasPrefix(config.Cmd, cmd) && config.Cmd != cmd {
+				substringNEQMatches = append(substringNEQMatches, config.Cmd)
+			}
+		}
+
 		// Handle built-in REPL commands
 		switch {
-		case cmd == "quit" || cmd == lib.ReplCmdAliases["quit"]:
+		case cmd == "quit" || cmd == lib.ReplCmdAliases["quit"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "quit":
 			lib.WriteHistory(in)
 			os.Exit(0)
 
-		case cmd == "help" || cmd == lib.ReplCmdAliases["help"]:
+		case cmd == "help" || cmd == lib.ReplCmdAliases["help"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "help":
 			if lastBackslashIndex > 0 {
 				preservedBuffer += lastLine[:lastBackslashIndex]
 			}
@@ -414,7 +430,7 @@ func executor(in string, p *prompt.Prompt) {
 			}
 			return
 
-		case cmd == "multi" || cmd == lib.ReplCmdAliases["multi"]:
+		case cmd == "multi" || cmd == lib.ReplCmdAliases["multi"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "multi":
 			if lastBackslashIndex > 0 {
 				preservedBuffer += lastLine[:lastBackslashIndex]
 			}
@@ -428,18 +444,23 @@ func executor(in string, p *prompt.Prompt) {
 			}
 			return
 
-		case cmd == "send" || cmd == lib.ReplCmdAliases["send"]:
-			split := strings.Split(input, "\\s")
-			input = strings.TrimSpace(split[0])
-			input = strings.TrimSpace(input)
-			if input == "" {
+		case cmd == "send" || cmd == lib.ReplCmdAliases["send"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "send":
+			condensedSplit := strings.Split(condensedInput, "\\s")
+			condensedInput = strings.TrimSpace(condensedSplit[0])
+			condensedInput = strings.TrimSpace(condensedInput)
+
+			trimmedSplit := strings.Split(trimmedInput, "\\s")
+			trimmedInput = strings.TrimSpace(trimmedSplit[0])
+			trimmedInput = strings.TrimSpace(trimmedInput)
+
+			if condensedInput == "" {
 				fmt.Println()
 				fmt.Println("🤷‍♂️ No prompt to send")
 				fmt.Println()
 				return
 			}
 
-		case cmd == "tell" || cmd == lib.ReplCmdAliases["tell"]:
+		case cmd == "tell" || cmd == lib.ReplCmdAliases["tell"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "tell":
 			if lastBackslashIndex > 0 {
 				preservedBuffer += lastLine[:lastBackslashIndex]
 			}
@@ -451,7 +472,7 @@ func executor(in string, p *prompt.Prompt) {
 			}
 			return
 
-		case cmd == "chat" || cmd == lib.ReplCmdAliases["chat"]:
+		case cmd == "chat" || cmd == lib.ReplCmdAliases["chat"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "chat":
 			if lastBackslashIndex > 0 {
 				preservedBuffer += lastLine[:lastBackslashIndex]
 			}
@@ -463,7 +484,7 @@ func executor(in string, p *prompt.Prompt) {
 			}
 			return
 
-		case cmd == "run" || cmd == lib.ReplCmdAliases["run"]:
+		case cmd == "run" || cmd == lib.ReplCmdAliases["run"] || len(substringNEQMatches) == 1 && substringNEQMatches[0] == "run":
 			if lastBackslashIndex > 0 {
 				preservedBuffer += lastLine[:lastBackslashIndex]
 			}
@@ -482,17 +503,54 @@ func executor(in string, p *prompt.Prompt) {
 			var matchedCmd string
 
 			for _, config := range term.CliCommands {
-				if (cmd == config.Cmd || (config.Alias != "" && cmd == config.Alias)) && config.Repl {
+				if (cmd == config.Cmd || (config.Alias != "" && cmd == config.Alias) || len(substringNEQMatches) == 1 && substringNEQMatches[0] == config.Cmd) && config.Repl {
 					matchedCmd = config.Cmd
 					break
 				}
 			}
 
+			if matchedCmd == "" && len(suggestions) > 0 {
+				matchedCmd = strings.Replace(suggestions[0].Text, "\\", "", 1)
+			}
+
 			if matchedCmd == "" {
-				for _, config := range term.CliCommands {
-					if strings.HasPrefix(config.Cmd, cmd) && config.Repl {
-						matchedCmd = config.Cmd
-						break
+
+				cancelOpt := "Cancel"
+				asPrompt := cmd
+				if len(asPrompt) > 20 {
+					asPrompt = asPrompt[:20] + "..."
+				}
+				promptOpt := fmt.Sprintf("Send '%s' as a prompt to the AI model", asPrompt)
+				if len(substringNEQMatches) > 1 {
+					fmt.Println()
+					opts := []string{}
+
+					for _, match := range substringNEQMatches {
+						opts = append(opts, "\\"+match)
+					}
+					opts = append(opts, cancelOpt, promptOpt)
+					sel, err := term.SelectFromList("🤔 Did you mean to type one of these commands?", opts)
+					if err != nil {
+						color.New(term.ColorHiRed).Printf("Error selecting from list: %v\n", err)
+					}
+					if sel == cancelOpt {
+						return
+					} else if sel != promptOpt {
+						matchedCmd = strings.Replace(sel, "\\", "", 1)
+					}
+				} else if len(lines) == 1 && strings.HasPrefix(trimmedInput, "\\") {
+					showCmdsOpt := "Show available commands"
+					opts := []string{cancelOpt, showCmdsOpt, promptOpt}
+					sel, err := term.SelectFromList("🤔 Couldn't find a matching command. What do you want to do?", opts)
+					if err != nil {
+						color.New(term.ColorHiRed).Printf("Error selecting from list: %v\n", err)
+					}
+					if sel == cancelOpt {
+						return
+					} else if sel == showCmdsOpt {
+						replHelp()
+						fmt.Println()
+						return
 					}
 				}
 			}
@@ -532,7 +590,7 @@ func executor(in string, p *prompt.Prompt) {
 	// Handle non-command input based on mode
 	if lib.CurrentReplState.Mode == lib.ReplModeTell {
 		fmt.Println()
-		args := []string{"tell", input}
+		args := []string{"tell", trimmedInput}
 		var err error
 		_, err = lib.ExecPlandexCommandWithParams(args, lib.ExecPlandexCommandParams{
 			SessionId: sessionId,
@@ -542,7 +600,7 @@ func executor(in string, p *prompt.Prompt) {
 		}
 	} else if lib.CurrentReplState.Mode == lib.ReplModeChat {
 		fmt.Println()
-		args := []string{"chat", input}
+		args := []string{"chat", trimmedInput}
 		output, err := lib.ExecPlandexCommandWithParams(args, lib.ExecPlandexCommandParams{
 			SessionId: sessionId,
 		})

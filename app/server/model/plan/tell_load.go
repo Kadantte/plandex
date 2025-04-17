@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"plandex-server/db"
 	"plandex-server/model"
+	"plandex-server/notify"
 	"plandex-server/types"
 
 	shared "plandex-shared"
@@ -14,7 +15,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-func (state *activeTellStreamState) loadTellPlan() error {
+func (state *activeTellStreamState) loadTellPlan(isRetry bool) error {
 	clients := state.clients
 	req := state.req
 	auth := state.auth
@@ -153,7 +154,7 @@ func (state *activeTellStreamState) loadTellPlan() error {
 			innerErrCh := make(chan error)
 
 			go func() {
-				if iteration == 0 && missingFileResponse == "" && !req.IsUserContinue {
+				if iteration == 0 && missingFileResponse == "" && !req.IsUserContinue && !isRetry {
 					num := len(convo) + 1
 
 					log.Printf("[TellLoad] storing user message | len(convo): %d | num: %d\n", len(convo), num)
@@ -248,6 +249,8 @@ func (state *activeTellStreamState) loadTellPlan() error {
 		for i := 0; i < 4; i++ {
 			err = <-errCh
 			if err != nil {
+				go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error loading plan: %v", err))
+
 				active.StreamDoneCh <- &shared.ApiError{
 					Type:   shared.ApiErrorTypeOther,
 					Status: http.StatusInternalServerError,
@@ -274,6 +277,8 @@ func (state *activeTellStreamState) loadTellPlan() error {
 
 	if err != nil {
 		log.Printf("execTellPlan: error loading tell plan: %v\n", err)
+		go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error loading tell plan: %v", err))
+
 		active.StreamDoneCh <- &shared.ApiError{
 			Type:   shared.ApiErrorTypeOther,
 			Status: http.StatusInternalServerError,
