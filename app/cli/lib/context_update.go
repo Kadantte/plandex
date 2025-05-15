@@ -388,6 +388,8 @@ func checkOutdatedAndMaybeUpdateContext(doUpdate bool, maybeContexts []*shared.C
 					errs = append(errs, fmt.Errorf("failed to read the file %s: %v", ctx.FilePath, err))
 					return
 				}
+				fileContent = shared.NormalizeEOL(fileContent)
+
 				fileInfo, err := os.Stat(ctx.FilePath)
 				if err != nil {
 					mu.Lock()
@@ -684,9 +686,9 @@ func checkOutdatedAndMaybeUpdateContext(doUpdate bool, maybeContexts []*shared.C
 								mapFileInfoByPath[path] = fileInfo
 							}
 							mu.Unlock()
-
-							innerExistenceErrCh <- nil
 						}
+
+						innerExistenceErrCh <- nil
 					}(path)
 				}
 
@@ -753,7 +755,6 @@ func checkOutdatedAndMaybeUpdateContext(doUpdate bool, maybeContexts []*shared.C
 						}
 
 						mu.Lock()
-						defer mu.Unlock()
 
 						totalMapPaths++
 
@@ -766,6 +767,8 @@ func checkOutdatedAndMaybeUpdateContext(doUpdate bool, maybeContexts []*shared.C
 							innerUpdatesErrCh <- nil
 							return
 						}
+
+						defer mu.Unlock()
 
 						if state.currentMapInputBatch.NumFiles()+1 > shared.ContextMapMaxBatchSize || state.totalMapSize+res.size > shared.ContextMapMaxBatchBytes {
 							state.currentMapInputBatch = shared.FileMapInputs{}
