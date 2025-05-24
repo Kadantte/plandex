@@ -51,6 +51,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+
 		start := time.Now()
 
 		log.Printf("\n\nRequest: %s %s\n\n", r.Method, r.URL.Path)
@@ -59,7 +60,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func StartServer(handler http.Handler, configureFn func(handler http.Handler) http.Handler) {
+func StartServer(handler http.Handler, configureFn func(handler http.Handler) http.Handler, afterStart func()) {
 	if os.Getenv("GOENV") == "development" {
 		log.Println("In development mode.")
 	}
@@ -107,6 +108,10 @@ func StartServer(handler http.Handler, configureFn func(handler http.Handler) ht
 	}()
 
 	log.Println("Started Plandex server on port " + externalPort)
+
+	if afterStart != nil {
+		afterStart()
+	}
 
 	// Capture SIGTERM and SIGINT signals
 	sigTermChan := make(chan os.Signal, 1)
