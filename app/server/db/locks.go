@@ -8,8 +8,10 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"plandex-server/notify"
 	"plandex-server/shutdown"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +27,7 @@ const locksVerboseLogging = false
 const lockHeartbeatInterval = 3 * time.Second
 const lockHeartbeatTimeout = 60 * time.Second
 const maxLockRetries = 6
-const initialLockRetryDelay = 100 * time.Millisecond
+const initialLockRetryDelay = 300 * time.Millisecond
 const backoffFactor = 2    // Exponential base
 const jitterFraction = 0.3 // e.g. ±30% of the backoff
 
@@ -384,6 +386,14 @@ func lockRepoDB(params LockRepoParams, numRetry int) (string, error) {
 
 	// Start a goroutine to keep the lock alive
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in heartbeat goroutine: %v\n%s", r, debug.Stack())
+				cancelFn()
+				go notify.NotifyErr(notify.SeverityError, fmt.Errorf("panic in lock heartbeat goroutine: %v\n%s", r, debug.Stack()))
+			}
+		}()
+
 		onCancel := func() {
 			log.Printf("[Lock][Heartbeat] Timeout or context canceled during heartbeat loop for lock %s for plan %s | reason: %s", newLock.Id, planId, params.Reason)
 		}

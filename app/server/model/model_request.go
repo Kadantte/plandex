@@ -6,8 +6,11 @@ import (
 	"log"
 	"plandex-server/db"
 	"plandex-server/hooks"
+	"plandex-server/notify"
 	"plandex-server/types"
 	shared "plandex-shared"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
@@ -66,6 +69,8 @@ func ModelRequest(
 		return nil, fmt.Errorf("purpose is required")
 	}
 
+	messages = FilterEmptyMessages(messages)
+	messages = CheckSingleSystemMessage(modelConfig, messages)
 	inputTokensEstimate := GetMessagesTokenEstimate(messages...) + TokensPerRequest
 
 	config := modelConfig.GetRoleForInputTokens(inputTokensEstimate)
@@ -78,12 +83,17 @@ func ModelRequest(
 
 	log.Printf("Model config - role: %s, model: %s, max output tokens: %d\n", modelConfig.Role, modelConfig.BaseModelConfig.ModelName, modelConfig.BaseModelConfig.MaxOutputTokens)
 
+	expectedOutputTokens := modelConfig.BaseModelConfig.MaxOutputTokens - inputTokensEstimate
+	if params.EstimatedOutputTokens != 0 {
+		expectedOutputTokens = params.EstimatedOutputTokens
+	}
+
 	_, apiErr := hooks.ExecHook(hooks.WillSendModelRequest, hooks.HookParams{
 		Auth: auth,
 		Plan: plan,
 		WillSendModelRequestParams: &hooks.WillSendModelRequestParams{
 			InputTokens:  inputTokensEstimate,
-			OutputTokens: modelConfig.BaseModelConfig.MaxOutputTokens - inputTokensEstimate,
+			OutputTokens: expectedOutputTokens,
 			ModelName:    modelConfig.BaseModelConfig.ModelName,
 		},
 	})
@@ -99,13 +109,40 @@ func ModelRequest(
 	reqStarted := time.Now()
 
 	req := types.ExtendedChatCompletionRequest{
-		Model:       modelConfig.BaseModelConfig.ModelName,
-		Messages:    messages,
-		Temperature: modelConfig.Temperature,
-		TopP:        modelConfig.TopP,
-		Stop:        stop,
-		Tools:       tools,
-		ToolChoice:  toolChoice,
+		Model:    modelConfig.BaseModelConfig.ModelName,
+		Messages: messages,
+	}
+
+	if !modelConfig.BaseModelConfig.RoleParamsDisabled {
+		req.Temperature = modelConfig.Temperature
+		req.TopP = modelConfig.TopP
+	}
+
+	if len(tools) > 0 {
+		req.Tools = tools
+	}
+
+	if toolChoice != nil {
+		req.ToolChoice = toolChoice
+	}
+
+	onStream := params.OnStream
+	if modelConfig.BaseModelConfig.StopDisabled {
+		if len(stop) > 0 {
+			onStream = func(chunk string, buffer string) (shouldStop bool) {
+				for _, stopSequence := range stop {
+					if strings.Contains(buffer, stopSequence) {
+						return true
+					}
+				}
+				if params.OnStream != nil {
+					return params.OnStream(chunk, buffer)
+				}
+				return false
+			}
+		}
+	} else {
+		req.Stop = stop
 	}
 
 	if prediction != "" {
@@ -115,10 +152,24 @@ func ModelRequest(
 		}
 	}
 
-	res, err := CreateChatCompletionWithInternalStream(clients, modelConfig, ctx, req, params.OnStream, reqStarted)
+	res, err := CreateChatCompletionWithInternalStream(clients, modelConfig, ctx, req, onStream, reqStarted)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if modelConfig.BaseModelConfig.StopDisabled && len(stop) > 0 {
+		earliest := len(res.Content)
+		found := false
+		for _, s := range stop {
+			if i := strings.Index(res.Content, s); i != -1 && i < earliest {
+				earliest = i
+				found = true
+			}
+		}
+		if found {
+			res.Content = res.Content[:earliest]
+		}
 	}
 
 	if params.AfterReq != nil {
@@ -147,6 +198,13 @@ func ModelRequest(
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in DidSendModelRequest hook: %v\n%s", r, debug.Stack())
+				go notify.NotifyErr(notify.SeverityError, fmt.Errorf("panic in DidSendModelRequest hook: %v\n%s", r, debug.Stack()))
+			}
+		}()
+
 		_, apiErr := hooks.ExecHook(hooks.DidSendModelRequest, hooks.HookParams{
 			Auth: auth,
 			Plan: plan,
@@ -178,8 +236,40 @@ func ModelRequest(
 
 		if apiErr != nil {
 			log.Printf("buildWholeFile - error executing DidSendModelRequest hook: %v", apiErr)
+			go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error executing DidSendModelRequest hook: %v", apiErr))
 		}
 	}()
 
 	return res, nil
+}
+
+func FilterEmptyMessages(messages []types.ExtendedChatMessage) []types.ExtendedChatMessage {
+	filteredMessages := []types.ExtendedChatMessage{}
+	for _, message := range messages {
+		var content []types.ExtendedChatMessagePart
+		for _, part := range message.Content {
+			if part.Type != openai.ChatMessagePartTypeText || part.Text != "" {
+				content = append(content, part)
+			}
+		}
+		if len(content) > 0 {
+			filteredMessages = append(filteredMessages, types.ExtendedChatMessage{
+				Role:    message.Role,
+				Content: content,
+			})
+		}
+	}
+	return filteredMessages
+}
+
+func CheckSingleSystemMessage(modelConfig *shared.ModelRoleConfig, messages []types.ExtendedChatMessage) []types.ExtendedChatMessage {
+	if len(messages) == 1 && modelConfig.BaseModelConfig.SingleMessageNoSystemPrompt {
+		if messages[0].Role == openai.ChatMessageRoleSystem {
+			msg := messages[0]
+			msg.Role = openai.ChatMessageRoleUser
+			return []types.ExtendedChatMessage{msg}
+		}
+	}
+
+	return messages
 }
