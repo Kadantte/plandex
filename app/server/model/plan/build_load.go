@@ -5,8 +5,11 @@ import (
 	"log"
 	"net/http"
 	"plandex-server/db"
+	"plandex-server/notify"
 	"plandex-server/syntax"
 	"plandex-server/types"
+	"runtime"
+	"runtime/debug"
 
 	shared "plandex-shared"
 )
@@ -40,9 +43,16 @@ func (state *activeBuildStreamState) loadPendingBuilds(sessionId string) (map[st
 		CancelFn: active.CancelFn,
 		Reason:   "load pending builds",
 	}, func(repo *db.GitRepo) error {
-		errCh := make(chan error)
+		errCh := make(chan error, 3)
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in getPlanContexts: %v\n%s", r, debug.Stack())
+					errCh <- fmt.Errorf("error getting plan modelContext: %v", r)
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
 			res, err := db.GetPlanContexts(auth.OrgId, plan.Id, true, false)
 			if err != nil {
 				log.Printf("Error getting plan modelContext: %v\n", err)
@@ -55,6 +65,13 @@ func (state *activeBuildStreamState) loadPendingBuilds(sessionId string) (map[st
 		}()
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in getPlanSettings: %v\n%s", r, debug.Stack())
+					errCh <- fmt.Errorf("error getting plan settings: %v", r)
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
 			res, err := active.PendingBuildsByPath(auth.OrgId, auth.User.Id, nil)
 
 			if err != nil {
@@ -69,6 +86,13 @@ func (state *activeBuildStreamState) loadPendingBuilds(sessionId string) (map[st
 		}()
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in getPlanSettings: %v\n%s", r, debug.Stack())
+					errCh <- fmt.Errorf("error getting plan settings: %v", r)
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
 			res, err := db.GetPlanSettings(plan, true)
 			if err != nil {
 				log.Printf("Error getting plan settings: %v\n", err)
@@ -157,6 +181,8 @@ func (state *activeBuildStreamFileState) loadBuildFile(activeBuild *types.Active
 		UpdateActivePlan(activePlan.Id, activePlan.Branch, func(ap *types.ActivePlan) {
 			ap.IsBuildingByPath[filePath] = false
 		})
+		go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error storing plan build: %v", err))
+
 		activePlan.StreamDoneCh <- &shared.ApiError{
 			Type:   shared.ApiErrorTypeOther,
 			Status: http.StatusInternalServerError,
@@ -181,9 +207,16 @@ func (state *activeBuildStreamFileState) loadBuildFile(activeBuild *types.Active
 		CancelFn:    activePlan.CancelFn,
 		Reason:      "load build file",
 	}, func(repo *db.GitRepo) error {
-		errCh := make(chan error)
+		errCh := make(chan error, 2)
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in getCurrentPlanState: %v\n%s", r, debug.Stack())
+					errCh <- fmt.Errorf("error getting current plan state: %v", r)
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
 			log.Println("loadBuildFile - Getting current plan state")
 			res, err := db.GetCurrentPlanState(db.CurrentPlanStateParams{
 				OrgId:  currentOrgId,
@@ -194,6 +227,8 @@ func (state *activeBuildStreamFileState) loadBuildFile(activeBuild *types.Active
 				UpdateActivePlan(activePlan.Id, activePlan.Branch, func(ap *types.ActivePlan) {
 					ap.IsBuildingByPath[filePath] = false
 				})
+				go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error getting current plan state: %v", err))
+
 				activePlan.StreamDoneCh <- &shared.ApiError{
 					Type:   shared.ApiErrorTypeOther,
 					Status: http.StatusInternalServerError,
@@ -209,6 +244,13 @@ func (state *activeBuildStreamFileState) loadBuildFile(activeBuild *types.Active
 		}()
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in getPlanConvo: %v\n%s", r, debug.Stack())
+					errCh <- fmt.Errorf("error getting plan convo: %v", r)
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
 			res, err := db.GetPlanConvo(currentOrgId, planId)
 			if err != nil {
 				log.Printf("Error getting plan convo: %v\n", err)
@@ -236,6 +278,8 @@ func (state *activeBuildStreamFileState) loadBuildFile(activeBuild *types.Active
 		UpdateActivePlan(activePlan.Id, activePlan.Branch, func(ap *types.ActivePlan) {
 			ap.IsBuildingByPath[filePath] = false
 		})
+		go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error loading build file: %v", err))
+
 		activePlan.StreamDoneCh <- &shared.ApiError{
 			Type:   shared.ApiErrorTypeOther,
 			Status: http.StatusInternalServerError,

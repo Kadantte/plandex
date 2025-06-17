@@ -62,8 +62,11 @@ func (m streamUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// We have the loaded content in msg.text
 		m.updateState(func() {
-			m.reply += "\n\n" + msg.text + "\n\n"
+			if msg.text != "" {
+				m.reply += "\n\n" + msg.text + "\n\n"
+			}
 			// and keep processing
+			m.processing = true
 		})
 		m.updateReplyDisplay()
 		return m, m.Tick()
@@ -260,6 +263,9 @@ func (m *streamUIModel) getViewportDimensions() (int, int) {
 	}
 
 	maxViewportHeight := h - (helpHeight + processingHeight + buildHeight)
+	if maxViewportHeight < 0 {
+		maxViewportHeight = 0
+	}
 	viewportHeight := min(maxViewportHeight, lipgloss.Height(m.mainDisplay))
 	viewportWidth := w
 
@@ -347,7 +353,6 @@ func (m *streamUIModel) scrollEnd() {
 }
 
 func (m *streamUIModel) streamUpdate(msg *shared.StreamMessage, deferUIUpdate bool) (tea.Model, tea.Cmd) {
-
 	switch msg.Type {
 
 	case shared.StreamMessageMulti:
@@ -470,7 +475,7 @@ func (m *streamUIModel) streamUpdate(msg *shared.StreamMessage, deferUIUpdate bo
 
 		// Auto-collapse if build info takes up too much space
 		state = m.readState()
-		if !state.userExpandedBuild && state.building {
+		if !state.userToggledBuild && state.building {
 			rows := len(m.getRows(false))
 			m.updateState(func() {
 				m.buildViewCollapsed = rows > 3
@@ -595,7 +600,7 @@ func (m *streamUIModel) up() {
 	} else {
 		m.updateState(func() {
 			m.buildViewCollapsed = false
-			m.userExpandedBuild = true
+			m.userToggledBuild = true
 		})
 	}
 }
@@ -609,6 +614,7 @@ func (m *streamUIModel) down() {
 	} else {
 		m.updateState(func() {
 			m.buildViewCollapsed = true
+			m.userToggledBuild = true
 		})
 	}
 }
@@ -682,7 +688,7 @@ func (m *streamUIModel) checkMissingFile(msg *shared.StreamMessage) (tea.Model, 
 						m.err = fmt.Errorf("failed to read file: %w", err)
 						return tea.Quit
 					}
-					content := string(bytes)
+					content := string(shared.NormalizeEOL(bytes))
 
 					log.Println("checkMissingFile - calling RespondMissingFile")
 					apiErr := api.Client.RespondMissingFile(lib.CurrentPlanId, lib.CurrentBranch, shared.RespondMissingFileRequest{

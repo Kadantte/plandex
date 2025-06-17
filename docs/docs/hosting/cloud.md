@@ -26,8 +26,7 @@ Plandex Cloud has two billing modes:
 
 ### BYO API Key
 
-- Use your own OpenAI, OpenRouter.ai, or other OpenAI-compatible provider accounts.
-- Supply your own API keys.
+- Use your own OpenAI and OpenRouter.ai accounts and API keys.
 - Start with a free trial up to 10 plans and 20 model responses per plan.
 - After the trial, you can upgrade to a paid plan for $30 per month.
 
@@ -78,7 +77,7 @@ plandex usage --log --purchases --today # show only purchases for the day so far
 
 Data you send to Plandex Cloud is retained in order to debug and improve Plandex. In the future, this data may also be used to train and fine-tune models to improve performance and reduce costs.
 
-That said, if you delete a plan or delete your Plandex Cloud account, all associated data will be removed. It will still be included in backups for up to 7 days, then it will no longer exist anywhere on Plandex Cloud.
+That said, if you delete your Plandex Cloud account, all associated data will be removed within 14 days (this delay allows for debugging and backups).
 
 Data sent to Plandex Cloud may be shared with the following third parties:
 

@@ -25,10 +25,10 @@
     <b>Docs</b>
   </a>
    · 
-  <!-- <a href="#more-examples-">
+  <a href="#examples-">
     <b>Examples</b>
   </a>
-   ·  -->
+   · 
   <a href="https://docs.plandex.ai/hosting/self-hosting/local-mode-quickstart">
     <b>Local Self-Hosted Mode</b>
   </a>
@@ -96,13 +96,13 @@
 
 - 🗺️ **Fast project map generation** and syntax validation with tree-sitter. Supports 30+ languages.
 
-- 💰 **Context caching** is used across the board for OpenAI and Anthropic models, reducing costs and latency.
+- 💰 **Context caching** is used across the board for OpenAI, Anthropic, and Google models, reducing costs and latency.
 
 ## Tight control or full autonomy—it's up to you
 
 - 🚦 **Configurable autonomy:** go from full auto mode to fine-grained control depending on the task.
 
-- 🐞 **Automated debugging** of terminal commands (like builds, linters, tests, deployments, and scripts).
+- 🐞 **Automated debugging** of terminal commands (like builds, linters, tests, deployments, and scripts). If you have Chrome installed, you can also automatically debug browser applications.
 
 ## Tools that help you get production-ready results
 
@@ -124,53 +124,22 @@
 
 - 📦 **One-line, zero dependency CLI install**. Dockerized local mode for easily self-hosting the server. Cloud-hosting options for extra reliability and convenience.
 
-<!-- <br/>
-<br/> -->
-
-<!-- Vimeo link is nicer on mobile than embedded video... downside is it navigates to vimeo in same tab (no way to add target=_blank) -->
-<!-- https://github.com/plandex-ai/plandex/assets/545350/c2ee3bcd-1512-493f-bdd5-e3a4ca534a36 -->
-
-<!-- <a href="https://player.vimeo.com/video/926634577">
-  <img src="images/plandex-intro-vimeo.png" alt="Plandex intro video" width="100%"/>
-</a> -->
-
-<!-- <br/>
-<br/> -->
-
-<!-- ## More examples  🎥
-
-<h4>👉  <a href="https://www.youtube.com/watch?v=0ULjQx25S_Y">Building Pong in C/OpenGL with GPT-4o and Plandex</a></h4>
-
-<h4>👉  <a href="https://www.youtube.com/watch?v=rnlepfh7TN4">Fixing a tricky real-world bug in 5 minutes with Claude Opus 3 and Plandex</a></h4>
-
-<br/> -->
-
-<!-- ## Learn more  🧐
-
-<!-- - [Overview](#overview-) -->
-<!-- - [Install](#install)
-- [Hosting options](#hosting-options-)
-- [Get started](#get-started-)
-- [Docs](https://docs.plandex.ai/)
-- [Build complex software](#build-complex-software-with-llms-)
-- [Why Plandex?](#why-plandex-)
-- [Discussion and discord](#discussion-and-discord-)
-- [Contributors](#contributors-) -->
-<br/>
-
-<!-- ## Overview  📚
-
-<p>Churn through your backlog, work with unfamiliar technologies, get unstuck, and <strong>spend less time on the boring stuff.</strong></p>
-
-<p>Plandex is a <strong>reliable and developer-friendly</strong> AI coding agent in your terminal. It can plan out and complete <strong>large tasks</strong> that span many files and steps.</p>
-
-<p>Designed for <strong>real-world use-cases</strong>, Plandex can help you build a new app quickly, add new features to an existing codebase, write tests and scripts, understand code, fix bugs, and automatically debug failing commands (like tests, typecheckers, linters, etc.). </p>
-
-<br/> -->
 
 ## Workflow  🔄
 
 <img src="images/plandex-workflow.png" alt="Plandex workflow" width="100%"/>
+
+## Examples  🎥
+
+  <br/>
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=g-_76U_nK0Y">
+    <img src="images/plandex-browser-debug-yt.png" alt="Plandex Browser Debugging Example" width="800">
+  </a>
+</div>
+
+<br/>
 
 ## Install  📥
 
@@ -187,15 +156,20 @@ curl -sL https://plandex.ai/install.sh | bash
 | Option                                | Description                                                                                                                                                                                                                                                 |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Plandex Cloud (Integrated Models)** | • No separate accounts or API keys.<br/>• Easy multi-device usage.<br/>• Centralized billing, budgeting, usage tracking, and cost reporting.<br/>• Quickest way to [get started.](https://app.plandex.ai/start?modelsMode=integrated)                                                        |
-| **Plandex Cloud (BYO API Key)**       | • Use Plandex Cloud with your own [OpenRouter.ai](https://openrouter.ai) and [OpenAI](https://platform.openai.com) keys.<br/>• [Get started](https://app.plandex.ai/start?modelsMode=byo)                                                                   |
-| **Self-hosted/Local Mode**            | • Run Plandex locally with Docker or host on your own server.<br/>• Use your own [OpenRouter.ai](https://openrouter.ai) and [OpenAI](https://platform.openai.com) keys.<br/>• Follow the [local-mode quickstart](./hosting/self-hosting.md) to get started. |
+| **Plandex Cloud (BYO API Key)**       | • Use Plandex Cloud with your own [OpenRouter.ai](https://openrouter.ai) key (and **optionally** your own [OpenAI](https://platform.openai.com) key).<br/>• [Get started](https://app.plandex.ai/start?modelsMode=byo)                                                                   |
+| **Self-hosted/Local Mode**            | • Run Plandex locally with Docker or host on your own server.<br/>• Use your own [OpenRouter.ai](https://openrouter.ai) key (and **optionally** your own [OpenAI](https://platform.openai.com) key).<br/>• Follow the [local-mode quickstart](https://docs.plandex.ai/hosting/self-hosting/local-mode-quickstart) to get started. |
 
 ## Provider keys  🔑
 
-If you're going with a 'BYO API Key' option above (whether cloud or self-hosted), you'll need to set the `OPENROUTER_API_KEY` and `OPENAI_API_KEY` environment variables before continuing:
+If you're going with a 'BYO API Key' option above (whether cloud or self-hosted), you'll need to set the `OPENROUTER_API_KEY` environment variable before continuing:
 
 ```bash
 export OPENROUTER_API_KEY=...
+```
+
+You can also **optionally** set a `OPENAI_API_KEY` environment variable if you want OpenAI models to use the OpenAI API directly instead of OpenRouter (for slightly lower latency and costs):
+
+```bash
 export OPENAI_API_KEY=...
 ```
 

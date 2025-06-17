@@ -5,8 +5,10 @@ import (
 	"log"
 	"net/http"
 	"plandex-server/db"
+	"plandex-server/notify"
 	"plandex-server/types"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -21,6 +23,7 @@ var openingTagRegex = regexp.MustCompile(`<PlandexBlock\s+lang="(.+?)"\s+path="(
 
 type processChunkResult struct {
 	shouldReturn bool
+	shouldStop   bool
 }
 
 func (state *activeTellStreamState) processChunk(choice types.ExtendedChatCompletionStreamChoice) processChunkResult {
@@ -38,10 +41,24 @@ func (state *activeTellStreamState) processChunk(choice types.ExtendedChatComple
 		return processChunkResult{}
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("processChunk: Panic: %v\n%s\n", r, string(debug.Stack()))
+
+			go notify.NotifyErr(notify.SeverityError, fmt.Errorf("processChunk: Panic: %v\n%s", r, string(debug.Stack())))
+
+			active.StreamDoneCh <- &shared.ApiError{
+				Type:   shared.ApiErrorTypeOther,
+				Status: http.StatusInternalServerError,
+				Msg:    "Panic in processChunk",
+			}
+		}
+	}()
+
 	delta := choice.Delta
 	content := delta.Content
 
-	if delta.Reasoning != "" {
+	if state.modelConfig.BaseModelConfig.IncludeReasoning && delta.Reasoning != "" {
 		content = delta.Reasoning
 	}
 
@@ -91,7 +108,7 @@ func (state *activeTellStreamState) processChunk(choice types.ExtendedChatComple
 
 	// Handle file that is present in project paths but not in context
 	// Prompt user for what to do on the client side, stop the stream, and wait for user response before proceeding
-	bufferOrStreamRes := processor.bufferOrStream(content, &parserRes, state.currentStage)
+	bufferOrStreamRes := processor.bufferOrStream(content, &parserRes, state.currentStage, state.manualStop)
 
 	if currentFile != "" &&
 		!req.IsChatOnly &&
@@ -131,17 +148,82 @@ func (state *activeTellStreamState) processChunk(choice types.ExtendedChatComple
 		state.handleNewOperations(&parserRes)
 	}
 
-	return processChunkResult{}
+	return processChunkResult{
+		shouldStop: bufferOrStreamRes.shouldStop,
+	}
 }
 
 type bufferOrStreamResult struct {
 	shouldStream bool
 	content      string
 	blockLang    string
+	shouldStop   bool
 }
 
-func (processor *chunkProcessor) bufferOrStream(content string, parserRes *types.ReplyParserRes, currentStage shared.CurrentStage) bufferOrStreamResult {
-	// no buffering in planning stages
+func (processor *chunkProcessor) bufferOrStream(content string, parserRes *types.ReplyParserRes, currentStage shared.CurrentStage, manualStopSequences []string) bufferOrStreamResult {
+	if len(manualStopSequences) > 0 {
+		for _, stopSequence := range manualStopSequences {
+
+			// if the chunk contains the entire stop sequence, stream everything before it then caller can stop the stream
+			if strings.Contains(content, stopSequence) {
+				split := strings.Split(content, stopSequence)
+				if len(split) > 1 {
+					return bufferOrStreamResult{
+						shouldStream: true,
+						content:      split[0],
+						shouldStop:   true,
+					}
+				} else {
+					// there was nothing before the stop sequence, so nothing to stream
+					return bufferOrStreamResult{
+						shouldStream: false,
+						shouldStop:   true,
+					}
+				}
+			}
+
+			// otherwise if the buffer plus chunk contains the stop sequence, don't stream anything and stop the stream
+			if strings.Contains(processor.contentBuffer+content, stopSequence) {
+				log.Printf("bufferOrStream - stop sequence found in buffer plus chunk\n")
+				split := strings.Split(content, stopSequence)
+				if len(split) > 1 {
+					// we'll stream the part before the stop sequence
+					return bufferOrStreamResult{
+						shouldStream: true,
+						content:      split[0],
+						shouldStop:   true,
+					}
+				} else {
+					// there was nothing before the stop sequence, so nothing to stream
+					return bufferOrStreamResult{
+						shouldStream: false,
+						shouldStop:   true,
+					}
+				}
+			}
+
+			// otherwise if the buffer plus chunk ends with a prefix of the stop sequence, buffer it and continue
+
+			toCheck := processor.contentBuffer + content
+			tailLen := len(stopSequence) - 1
+			if tailLen > len(toCheck) {
+				tailLen = len(toCheck)
+			}
+			suffix := toCheck[len(toCheck)-tailLen:]
+
+			if strings.HasPrefix(stopSequence, suffix) {
+				log.Printf("bufferOrStream - stop sequence prefix found in buffer plus chunk. buffer and continue\n")
+				processor.contentBuffer += content
+				return bufferOrStreamResult{
+					shouldStream: false,
+					content:      content,
+				}
+			}
+
+		}
+	}
+
+	// apart from manual stop sequences, no buffering in planning stages
 	if currentStage.TellStage == shared.TellStagePlanning {
 		return bufferOrStreamResult{
 			shouldStream: true,
@@ -530,6 +612,8 @@ func (state *activeTellStreamState) handleMissingFile(content, currentFile, bloc
 
 	if err != nil {
 		log.Printf("Error setting plan %s status to prompting: %v\n", planId, err)
+		go notify.NotifyErr(notify.SeverityError, fmt.Errorf("error setting plan %s status to prompting: %v", planId, err))
+
 		active.StreamDoneCh <- &shared.ApiError{
 			Type:   shared.ApiErrorTypeOther,
 			Status: http.StatusInternalServerError,
@@ -595,7 +679,7 @@ func (state *activeTellStreamState) handleMissingFile(content, currentFile, bloc
 	select {
 	case <-active.Ctx.Done():
 		log.Println("Context cancelled while waiting for missing file response")
-		state.execHookOnStop(true)
+		state.execHookOnStop(false)
 		return processChunkResult{shouldReturn: true}
 
 	case <-time.After(30 * time.Minute): // long timeout here since we're waiting for user input

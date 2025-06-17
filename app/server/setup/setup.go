@@ -2,6 +2,7 @@ package setup
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,7 +10,9 @@ import (
 	"plandex-server/db"
 	"plandex-server/host"
 	"plandex-server/model/plan"
+	"plandex-server/notify"
 	"plandex-server/shutdown"
+	"runtime/debug"
 	"syscall"
 	"time"
 )
@@ -51,6 +54,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+
 		start := time.Now()
 
 		log.Printf("\n\nRequest: %s %s\n\n", r.Method, r.URL.Path)
@@ -59,7 +63,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func StartServer(handler http.Handler, configureFn func(handler http.Handler) http.Handler) {
+func StartServer(handler http.Handler, configureFn func(handler http.Handler) http.Handler, afterStart func()) {
 	if os.Getenv("GOENV") == "development" {
 		log.Println("In development mode.")
 	}
@@ -108,6 +112,10 @@ func StartServer(handler http.Handler, configureFn func(handler http.Handler) ht
 
 	log.Println("Started Plandex server on port " + externalPort)
 
+	if afterStart != nil {
+		afterStart()
+	}
+
 	// Capture SIGTERM and SIGINT signals
 	sigTermChan := make(chan os.Signal, 1)
 
@@ -121,7 +129,13 @@ func StartServer(handler http.Handler, configureFn func(handler http.Handler) ht
 
 	// Start goroutine to monitor active plans
 	go func() {
-		defer close(plansDone)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in waitForActivePlans: %v\n%s", r, debug.Stack())
+				go notify.NotifyErr(notify.SeverityError, fmt.Errorf("panic in waitForActivePlans: %v\n%s", r, debug.Stack()))
+			}
+			close(plansDone)
+		}()
 
 		// First wait for active plans to complete or timeout
 		log.Println("Waiting for active plans to complete...")

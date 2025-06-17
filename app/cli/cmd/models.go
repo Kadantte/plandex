@@ -493,6 +493,38 @@ func renderSettings(settings *shared.PlanSettings) {
 	modelPack := settings.ModelPack
 
 	color.New(color.Bold, term.ColorHiCyan).Println("🎛️  Current Model Pack")
+	renderModelPack(modelPack)
+
+	color.New(color.Bold, term.ColorHiCyan).Println("🧠 Planner Defaults")
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetAutoWrapText(false)
+	table.SetHeader([]string{"Max Tokens", "Max Convo Tokens"})
+	table.Append([]string{
+		fmt.Sprintf("%d", modelPack.Planner.GetFinalLargeContextFallback().BaseModelConfig.MaxTokens),
+		fmt.Sprintf("%d", modelPack.Planner.MaxConvoTokens),
+	})
+	table.Render()
+	fmt.Println()
+
+	color.New(color.Bold, term.ColorHiCyan).Println("⚙️  Planner Overrides")
+	table = tablewriter.NewWriter(os.Stdout)
+	table.SetAutoWrapText(false)
+	table.SetHeader([]string{"Name", "Value"})
+	if settings.ModelOverrides.MaxTokens == nil {
+		table.Append([]string{"Max Tokens", "no override"})
+	} else {
+		table.Append([]string{"Max Tokens", fmt.Sprintf("%d", *settings.ModelOverrides.MaxTokens)})
+	}
+	if settings.ModelOverrides.MaxConvoTokens == nil {
+		table.Append([]string{"Max Convo Tokens", "no override"})
+	} else {
+		table.Append([]string{"Max Convo Tokens", fmt.Sprintf("%d", *settings.ModelOverrides.MaxConvoTokens)})
+	}
+	table.Render()
+	fmt.Println()
+}
+
+func renderModelPack(modelPack *shared.ModelPack) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAutoFormatHeaders(false)
 	table.SetAutoWrapText(true)
@@ -650,19 +682,19 @@ func renderSettings(settings *shared.PlanSettings) {
 		topPStr,
 		fmt.Sprintf("%d 🪙", modelPack.Planner.BaseModelConfig.MaxTokens-modelPack.Planner.GetReservedOutputTokens()),
 	})
-	if modelPack.Planner.PlannerLargeContextFallback != nil {
+	if modelPack.Planner.LargeContextFallback != nil {
 		var temp float32
 		var topP float32
 		var disabled bool
 
-		if modelPack.Planner.PlannerLargeContextFallback.BaseModelConfig.RoleParamsDisabled {
+		if modelPack.Planner.LargeContextFallback.BaseModelConfig.RoleParamsDisabled {
 			temp = 1
 			topP = 1
 			disabled = true
 			anyRoleParamsDisabled = true
 		} else {
-			temp = modelPack.Planner.PlannerLargeContextFallback.Temperature
-			topP = modelPack.Planner.PlannerLargeContextFallback.TopP
+			temp = modelPack.Planner.LargeContextFallback.Temperature
+			topP = modelPack.Planner.LargeContextFallback.TopP
 		}
 
 		tempStr := fmt.Sprintf("%.1f", temp)
@@ -677,11 +709,11 @@ func renderSettings(settings *shared.PlanSettings) {
 
 		table.Append([]string{
 			"└─ large-context",
-			string(modelPack.Planner.PlannerLargeContextFallback.BaseModelConfig.Provider),
-			string(modelPack.Planner.PlannerLargeContextFallback.BaseModelConfig.ModelId),
+			string(modelPack.Planner.LargeContextFallback.BaseModelConfig.Provider),
+			string(modelPack.Planner.LargeContextFallback.BaseModelConfig.ModelId),
 			tempStr,
 			topPStr,
-			fmt.Sprintf("%d 🪙", modelPack.Planner.PlannerLargeContextFallback.BaseModelConfig.MaxTokens-modelPack.Planner.PlannerLargeContextFallback.GetReservedOutputTokens()),
+			fmt.Sprintf("%d 🪙", modelPack.Planner.LargeContextFallback.BaseModelConfig.MaxTokens-modelPack.Planner.LargeContextFallback.GetReservedOutputTokens()),
 		})
 	}
 
@@ -701,31 +733,4 @@ func renderSettings(settings *shared.PlanSettings) {
 
 	fmt.Println()
 
-	color.New(color.Bold, term.ColorHiCyan).Println("🧠 Planner Defaults")
-	table = tablewriter.NewWriter(os.Stdout)
-	table.SetAutoWrapText(false)
-	table.SetHeader([]string{"Max Tokens", "Max Convo Tokens"})
-	table.Append([]string{
-		fmt.Sprintf("%d", modelPack.Planner.GetFinalLargeContextFallback().BaseModelConfig.MaxTokens),
-		fmt.Sprintf("%d", modelPack.Planner.GetFinalLargeContextFallback().MaxConvoTokens),
-	})
-	table.Render()
-	fmt.Println()
-
-	color.New(color.Bold, term.ColorHiCyan).Println("⚙️  Planner Overrides")
-	table = tablewriter.NewWriter(os.Stdout)
-	table.SetAutoWrapText(false)
-	table.SetHeader([]string{"Name", "Value"})
-	if settings.ModelOverrides.MaxTokens == nil {
-		table.Append([]string{"Max Tokens", "no override"})
-	} else {
-		table.Append([]string{"Max Tokens", fmt.Sprintf("%d", *settings.ModelOverrides.MaxTokens)})
-	}
-	if settings.ModelOverrides.MaxConvoTokens == nil {
-		table.Append([]string{"Max Convo Tokens", "no override"})
-	} else {
-		table.Append([]string{"Max Convo Tokens", fmt.Sprintf("%d", *settings.ModelOverrides.MaxConvoTokens)})
-	}
-	table.Render()
-	fmt.Println()
 }

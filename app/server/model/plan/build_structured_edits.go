@@ -8,6 +8,9 @@ import (
 	diff_pkg "plandex-server/diff"
 	"plandex-server/hooks"
 	"plandex-server/syntax"
+	"plandex-server/utils"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -55,6 +58,14 @@ func (fileState *activeBuildStreamFileState) buildStructuredEdits() {
 		calledFastApply = true
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("panic in callFastApply: %v\n%s", r, debug.Stack())
+					fastApplyCh <- ""
+					runtime.Goexit() // don't allow outer function to continue and double-send to channel
+				}
+			}()
+
 			res, err := hooks.ExecHook(hooks.CallFastApply, hooks.HookParams{
 				FastApplyParams: &hooks.FastApplyParams{
 					InitialCode: originalFile,
@@ -177,6 +188,9 @@ func (fileState *activeBuildStreamFileState) buildStructuredEdits() {
 		BuildInfo: buildInfo,
 	})
 	time.Sleep(50 * time.Millisecond)
+
+	// strip any blank lines from beginning/end of updated file
+	updated = utils.StripAddedBlankLines(originalFile, updated)
 
 	log.Printf("buildStructuredEdits - %s - getting diff replacements\n", filePath)
 	replacements, err := diff_pkg.GetDiffReplacements(originalFile, updated)

@@ -1,3 +1,160 @@
+## CLI Version 2.1.6+1
+- Error handling fix
+- Fix for some roles in the `daily-driver` model pack that weren't correctly updated to Sonnet 4 in 2.1.6
+- Added fallback from Sonnet 4 to Sonnet 3.7 to deal with occasional provider errors and rate limit issues
+
+## CLI Version 2.1.6
+- The newly released Claude Sonnet 4 is now stable in testing, so it now replaces Sonnet 3.7 as the default model for context sizes under 200k across all model packs where 3.7 was previously used.
+- A new `strong-opus` model pack is now available. It uses Claude Opus 4 for planning and coding, and is otherwise the same as the 'strong' pack. Use it with `\set-model strong-opus` to try it out.
+- The `opus-4-planner` model pack that was introduced in 2.1.5 has been renamed to `opus-planner`, but the old name is still supported. This model pack uses Claude Opus 4 for planning, and the default models for other roles.
+- Fix for occasional garbled error message when the model is unresponsive.
+- Fix for occasional 'couldn't aquire lock' error after stream finishes.
+- Additional retry when model is unresponsive or hits provider rate limits—helps particularly with new Opus 4 model on OpenRouter.
+
+## CLI Version 2.1.5
+- Added newly released Claude Sonnet 4 and Claude Opus 4 as built-in models.
+- Sonnet 4 isn't yet used in the default 'daily-driver' model pack due to sporadic errors in early testing, but it can be used with the 'sonnet-4-daily' model pack (use '\set-model sonnet-4-daily' to use it). It will be promoted to the default model pack soon.
+- Opus 4 can be used with the 'opus-4-planner' model pack ( '\set-model opus-4-planner'), which uses Opus 4 for planning and Sonnet 4 for coding.
+- Removed error fallbacks for o4-mini and gemini-2.5-pro-preview.
+
+## CLI Version 2.1.3
+- Fix for default model pack not being correctly applied to new plans
+- Fix for potential crash on Linux when applying a plan
+
+## CLI Version 2.1.2
+- Fix for rare auto-load context timeout error when no files are loaded.
+
+## CLI Version 2.1.1
+- Fix for free Gemini 2.5 Pro Experimental OpenRouter endpoint.
+- Retries for "No endpoints found that support cache control" error that showed up when OpenRouter temporarily disabled caching for Gemini 2.5 Pro Preview.
+- Other minor improvements to error handling and retries.
+
+## CLI Version 2.1.0+1
+- Fix for potential encoding issue when loading files into context.
+
+## CLI Version 2.1.0
+## 🚀  OpenRouter only for BYO key
+
+- When using a BYO key mode (either cloud or self-hosted), you can now use Plandex with **only** an OpenRouter.ai account and `OPENROUTER_API_KEY` set. A separate OpenAI account is no longer required.
+
+- You can still use a separate OpenAI account if desired by setting the `OPENAI_API_KEY` environment variable in addition to `OPENROUTER_API_KEY`. This will cause OpenAI models to make direct calls to OpenAI, which is slightly faster and cheaper.
+
+## 🧠  New Models
+
+### Gemini
+
+- Google's Gemini 2.5 Pro Preview is now available as a built-in model, and is the new default model when context is between 200k and 1M tokens.
+
+- A new `gemini-preview` model pack has been added, which uses Gemini 2.5 Pro Preview for planning and coding, and default models for other roles. You can use this pack by running the REPL with the `--gemini-preview` flag (`plandex --gemini-preview`), or with `\set-model gemini-preview` from inside the REPL. Because this model is still in preview, a fallback to Gemini 1.5 Pro is used on failure.
+
+- Google's Gemini Flash 2.5 Preview is also now available as a built-in model. While it's not currently used by default in any built-in model packs, you can use with `\set-model` or a custom model pack.
+
+### OpenAI
+
+- OpenAI's o4-mini is now available as a built-in model with `high`, `medium`, and `low` reasoning effort levels. o3-mini has been replaced by the corresponding o4-mini models across all model packs, with a fallback to o3-mini on failure. This improves Plandex's file edit reliability and performance with no increase in costs. o4-mini-medium is also the new default planning model for the `cheap` model pack.
+
+- OpenAI's o3 is now available as a built-in model with `high`, `medium`, and `low` reasoning effort levels. Note that if you're using Plandex in BYO key mode, OpenAI requires an organization verification step before you can use o3.
+
+- o3-high is the new default planning model for the `strong` model pack, replacing o1. Due to the verification requirements for o3, the `strong` pack falls back to o4-mini-high for planning if o3 is not available.
+
+- OpenAI's gpt-4.1, gpt-4.1-mini, and gpt-4.1-nano have been added as built-in models, replacing gpt-4o and gpt-4o-mini in all model packs that used them previously.
+
+- gpt-4.1 is now used as a large context fallback for the default `coder` role, effectively increasing the context limit for the implementation phase from 200k to 1M tokens.
+
+- gpt-4.1 is also the new `coder` model in the `cheap` model pack, and is also the new main planning and coding model in the `openai` model pack.
+
+## 🛟  Model Fallbacks
+
+- In order to better incorporate newly released models and preview models that may have initial reliability or capacity issues, a more robust fallback and retry system has been implemented. This will allow for faster introduction of new models in the future while still maintaining a high level of reliability.
+
+- Fallbacks for 'context length exceeded' errors have also been improved, so that these errors will now trigger an automatic fallback to a model with a larger context limit if one is defined in the model pack. This will fix issues like https://github.com/plandex-ai/plandex/issues/232 where the stream errors with a 400 or 413 error when context is exceeded instead of falling back correctly.
+
+## 💰  Gemini Caching
+
+- Gemini models now support prompt caching, significantly reducing costs and latency during planning, implementation, and builds when using Gemini models.
+
+## 🤫  Quieter Reasoning
+
+- When using Claude 3.7 Sonnet thinking model in the `reasoning` AND `strong` model packs, reasoning is no longer included by default. This clears up some issues that were caused by output with specific formatting that Plandex takes action on being duplicated between the reasoning and the main output. It also feels a bit more relaxed to keep the reasoning behind-the-scenes, even though there can be a longer wait for the initial output.
+
+## 💻  REPL Improvements
+
+- Additional handling of possibly incorrect or mistyped commands in the REPL. Now apart from suggesting commands only based on possibly mistyped backslash commands, any likely command with or without the backslash will suggest possible commands rather than sending the prompt straight to the AI model, which can waste tokens due to minor typos or a missing backslash.
+
+## ☁️  Plandex Cloud
+
+- If you started a free trial of Plandex Cloud with BYO Key mode, you can now switch to a trial of Integrated Models mode if desired from your [billing dashboard](https://app.plandex.ai/settings/billing) (use `illing` from the REPL to open the dashboard).
+
+- When doing a trial in Integrated Models mode, you will now be warned when your trial credits balance goes below $1.00.
+
+- In Integrated Models mode, the required number of credits to send a prompt is now much lower, so you can use more credits before getting an 'Insufficient credits' message.
+
+## 🐞  Bug Fixes
+
+- Fix for 'Plan replacement failed' error during file edits on Windows that was caused by mismatched line endings.
+
+- Fix for 'tool calls not supported' error for custom models that use the XML output format (https://github.com/plandex-ai/plandex/issues/238).
+
+- Fix for errors in some roles with Anthropic models when only a single system message was sent (https://github.com/plandex-ai/plandex/issues/208).
+
+- Fix for potential back-pressure issue with large/concurrent project map operations.
+
+- Plandex Cloud: fix for JSON parsing error on payment form when the card is declined. It will now show the proper error message.
+
+## CLI Version 2.0.7+1
+- Small adjustment to previous release: in the REPL, select the first auto-complete suggestion on 'enter' if any suggestions are listed.
+
+## CLI Version 2.0.7
+- Better handling of partial or mistyped commands in the REPL. Rather than falling through to the AI model, a partial `\` command that matches only a single option will default to that command. If multiple commands could match, you'll be given a list of options. For input that begins with a `\` but doesn't match any command, there is now a confirmation step. This helps to prevent accidentally sending mistyped commands the model and burning tokens.
+
+## CLI Version 2.0.6
+- Timeout for 'plandex browser' log capture command
+- Better failure handling for 'plandex browser' command
+
+## CLI Version 2.0.5
+- Consolidated to a single model pack for Gemini 2.5 Pro Experimental: 'gemini-exp'. Use it with 'plandex --gemini-exp' or '\set-model gemini-exp' in the REPL.
+- Prevent the '\send' command from being included in the prompt when using multi-line mode in the REPL.
+
+## CLI Version 2.0.4
+- **Models**
+  - Claude Sonnet 3.7 thinking is now available as a built-in model. Try the `reasoning` model pack for more challenging tasks.
+  - Gemini 2.5 pro (free/experimental version) is now available. Try the 'gemini-planner' or 'gemini-experimental' model packs to use it.
+  - DeepSeek V3 03-24 version is available as a built-in model and is now used in the `oss` pack in the in the the `coder` role. 
+  - OpenAI GPT 4.5 is available as a built-in model. It's not in any model packs so far due to rate limits and high cost, but is available to use via `set-model`
+  
+- **Debugging**
+  - Plandex can now directly debug browser applications by catching errors and reading the console logs (requires Chrome).
+  - Enhanced signal handling and subprocess termination robustness for execution control.
+
+- **Model Packs**
+  - Added commands:
+    - `model-packs update`
+    - `model-packs show`
+
+- **Reliability**
+  - Implemented HTTP retry logic with exponential backoff for transient errors.    
+
+- **REPL**
+  - Fixed whitespace handling issues.
+  - Improved command execution flow.
+
+- **Installation**
+  - Clarified support for WSL-only environments.
+  - Better handling of sudo and alias creation on Linux.
+
+## CLI Version 2.0.3
+- Fix potential race condition/goroutine explosion/crash in context update.
+- Prevent crash with negative viewport height in stream tui.
+
+## CLI Version 2.0.2
+- Fixed bug where context auto-load would hang if there was no valid context to load (for example, if they're all directories, which is only discovered client-side, and which can't be auto-loaded)
+- Fixed bug where the build output would sometimes wrap incorrectly, causing the Plan Stream TUI to get out of sync with the build output.
+- Fixed bug where build output would jump between collapsed and expanded states during a stream, after the user manually expanded.
+
+## CLI Version 2.0.1
+- Fix for REPL startup failing when self-hosting or using BYOK cloud mode (https://github.com/plandex-ai/plandex/issues/216)
+- Fix for potential crash with custom model pack (https://github.com/plandex-ai/plandex/issues/217)
+
 ## CLI Version 2.0.0
 👋 Hi, Dane here. I'm the creator and lead developer of Plandex.
 

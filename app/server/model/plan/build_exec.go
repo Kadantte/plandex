@@ -3,11 +3,14 @@ package plan
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"path/filepath"
 	"plandex-server/db"
 	"plandex-server/hooks"
 	"plandex-server/model"
+	"plandex-server/notify"
 	"plandex-server/types"
+	"runtime/debug"
 	"time"
 
 	shared "plandex-shared"
@@ -134,6 +137,21 @@ func (buildState *activeBuildStreamState) execPlanBuild(activeBuild *types.Activ
 		log.Printf("Active plan not found for plan ID %s and branch %s\n", planId, branch)
 		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("execPlanBuild: Panic: %v\n%s\n", r, string(debug.Stack()))
+
+			go notify.NotifyErr(notify.SeverityError, fmt.Errorf("execPlanBuild: Panic: %v\n%s", r, string(debug.Stack())))
+
+			activePlan.StreamDoneCh <- &shared.ApiError{
+				Type:   shared.ApiErrorTypeOther,
+				Status: http.StatusInternalServerError,
+				Msg:    "Panic in execPlanBuild",
+			}
+		}
+	}()
+
 	filePath := activeBuild.Path
 
 	if !activePlan.IsBuildingByPath[filePath] {
